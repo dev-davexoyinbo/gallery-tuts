@@ -8,11 +8,32 @@ const photoColumns = Array.from(
 const searchForm = document.querySelector("#search-form");
 const searchInput = searchForm.querySelector("input");
 const photoArray = [];
+let photoModal = null;
 
 if (urlParams.has("query")) {
   unsplash.searchParam = urlParams.get("query") || "";
   searchInput.value = unsplash.searchParam;
 }
+
+const showModal = (card) => {
+  const photoModalProps = {
+    imageUrl: card.props.regularImageUrl,
+    description: card.props.description,
+    caption: card.props.caption,
+  };
+
+  if (!photoModal) {
+    photoModal = new PhotoModal(photoModalProps);
+    document.body.append(photoModal.element);
+  } else {
+    photoModal.update(photoModalProps);
+  }
+
+  console.log("Shhowing the modal", card.props.caption);
+  setTimeout(() => {
+    photoModal.open();
+  }, 0);
+}; //end function showModal
 
 const renderPhotos = () => {
   unsplash.getImages().then((images) => {
@@ -23,7 +44,12 @@ const renderPhotos = () => {
     images.forEach((image, imageIndex) => {
       const card = new PhotoCard({
         imageUrl: image.urls.small,
+        regularImageUrl: image.urls.regular,
+        description: image.description,
         caption: image.user.name,
+        clickEventListener: () => {
+          showModal(card);
+        },
       });
       photoArray.push(card);
       photoColumns[imageIndex % photoColumns.length].append(card.element);
@@ -45,6 +71,70 @@ searchForm.addEventListener("submit", (event) => {
 renderPhotos();
 
 ////////////////////////////////////////////////////////////////
+///////////Photo Modal /////////////////////////
+/////////////////////////////////////////////////////////////////
+function PhotoModal(props) {
+  const innerHtml = `
+    <div class="photo-modal">
+        <div ref-modal-content class="photo-modal-content shadow-lg relative">
+            <button ref-close-button class="bg-white h-10 w-10 absolute shadow-lg right-4 top-4 rounded-full font-medium text-2xl text-gray-500">&times;</button>
+            <img ref-main-img class="w-full h-[350px] object-cover object-position-center" src="${props.imageUrl}" alt="">
+            <div class="bg-white p-8 text-gray-600">
+                <h4 ref-description class="">${props.description}</h4>
+                <h6 ref-caption class="font-medium text-xs">${props.caption}</h6>
+            </div>
+        </div>
+    </div>`;
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = innerHtml;
+
+  this.props = props;
+  this.element = wrapper.firstElementChild;
+  const closeButton = this.element.querySelector("[ref-close-button]");
+  const modalContent = this.element.querySelector("[ref-modal-content]");
+  const mainImage = this.element.querySelector("[ref-main-img]");
+  const description = this.element.querySelector("[ref-description]");
+  const caption = this.element.querySelector("[ref-caption]");
+
+  this.update = (props) => {
+    Object.assign(this.props, props);
+    mainImage.src = "";
+    setTimeout(() => {
+      mainImage.src = this.props.imageUrl;
+    }, 0);
+    description.textContent = this.props.description;
+    caption.textContent = this.props.caption;
+  };
+
+  this.open = () => {
+    this.element.classList.add("showing");
+  };
+
+  this.close = () => {
+    this.element.classList.remove("showing");
+  };
+
+  closeButton.addEventListener("click", () => {
+    this.close();
+  });
+
+  const documentOutsideClickEventListener = (event) => {
+    if (event.composedPath().some((el) => el == modalContent)) return;
+
+    this.close();
+  };
+
+  document.addEventListener("click", documentOutsideClickEventListener, true);
+
+  this.destroy = () => {
+    document.removeEventListener("click", documentOutsideClickEventListener);
+
+    if (this.element && document.contains(this.element)) this.element.remove();
+  };
+} //end photoCard
+
+////////////////////////////////////////////////////////////////
 ///////////Photo Card /////////////////////////
 /////////////////////////////////////////////////////////////////
 function PhotoCard(props) {
@@ -59,7 +149,10 @@ function PhotoCard(props) {
   const wrapper = document.createElement("div");
   wrapper.innerHTML = innerHtml;
 
+  this.props = props;
   this.element = wrapper.firstElementChild;
+
+  this.element.addEventListener("click", props.clickEventListener);
 
   this.destroy = () => {
     if (this.element && document.contains(this.element)) this.element.remove();
